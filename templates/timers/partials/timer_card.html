@@ -1,0 +1,118 @@
+<div id="timer-{{ timer.pk }}"
+     class="card bg-base-100 shadow-md"
+     x-data="{
+       running: {{ timer.is_running|yesno:'true,false' }},
+       intervalId: null,
+
+       startTicking() {
+         if (this.intervalId) return;
+         this.intervalId = setInterval(() => {
+           if (this.$refs.tick) {
+             htmx.trigger(this.$refs.tick, 'tick');
+           }
+         }, 1000);
+       },
+
+       stopTicking() {
+         if (this.intervalId) {
+           clearInterval(this.intervalId);
+           this.intervalId = null;
+         }
+       }
+     }"
+     x-init="if (running) startTicking()"
+     x-on:htmx:before-cleanup.window="stopTicking()">
+
+  <div class="card-body gap-4">
+
+    <div class="flex items-start justify-between">
+      <div x-data="{ editing: false }" class="flex-1">
+        <h2 class="card-title cursor-pointer hover:text-primary transition-colors"
+            x-show="!editing"
+            @click="editing = true">
+          {{ timer.name }}
+        </h2>
+
+        <form x-show="editing"
+              hx-post="{% url 'timers:rename' timer.pk %}"
+              hx-target="#timer-{{ timer.pk }}"
+              hx-swap="outerHTML"
+              @submit="editing = false"
+              class="flex gap-2">
+          {% csrf_token %}
+          <input type="text"
+                 name="name"
+                 value="{{ timer.name }}"
+                 class="input input-bordered input-sm flex-1"
+                 maxlength="100"
+                 @keydown.escape="editing = false" />
+          <button type="submit" class="btn btn-primary btn-sm">Save</button>
+          <button type="button" class="btn btn-ghost btn-sm" @click="editing = false">✕</button>
+        </form>
+      </div>
+
+      <button class="btn btn-ghost btn-sm text-error ml-2"
+              hx-delete="{% url 'timers:delete' timer.pk %}"
+              hx-target="#timer-{{ timer.pk }}"
+              hx-swap="outerHTML swap:0.3s"
+              hx-confirm="Delete '{{ timer.name }}'?">
+        🗑
+      </button>
+    </div>
+
+    <div id="display-{{ timer.pk }}"
+         class="text-5xl font-mono font-bold text-center py-4 tracking-widest tabular-nums">
+      {{ timer.formatted_time }}
+    </div>
+
+    <span id="tick-{{ timer.pk }}"
+          x-ref="tick"
+          hx-post="{% url 'timers:tick' timer.pk %}"
+          hx-target="#display-{{ timer.pk }}"
+          hx-swap="innerHTML"
+          hx-trigger="tick"
+          hx-headers='{"X-CSRFToken": "{{ csrf_token }}"}'>
+    </span>
+
+    <div class="flex flex-wrap gap-2 justify-center">
+      <button class="btn btn-success btn-sm gap-1"
+              x-show="!running"
+              hx-post="{% url 'timers:start' timer.pk %}"
+              hx-target="#timer-{{ timer.pk }}"
+              hx-swap="outerHTML"
+              @click="running = true; startTicking()">
+        ▶ Start
+      </button>
+
+      <button class="btn btn-warning btn-sm gap-1"
+              x-show="running"
+              hx-post="{% url 'timers:stop' timer.pk %}"
+              hx-target="#timer-{{ timer.pk }}"
+              hx-swap="outerHTML"
+              @click="running = false; stopTicking()">
+        ⏸ Stop
+      </button>
+
+      <button class="btn btn-info btn-sm gap-1"
+              x-show="running"
+              hx-post="{% url 'timers:lap' timer.pk %}"
+              hx-target="#laps-{{ timer.pk }}"
+              hx-swap="innerHTML">
+        🏁 Lap
+      </button>
+
+      <button class="btn btn-error btn-sm btn-outline gap-1"
+              hx-post="{% url 'timers:reset' timer.pk %}"
+              hx-target="#timer-{{ timer.pk }}"
+              hx-swap="outerHTML"
+              hx-confirm="Reset '{{ timer.name }}'? All laps will be deleted.">
+        ↺ Reset
+      </button>
+    </div>
+
+    <div id="laps-{{ timer.pk }}">
+      {% include 'timers/partials/lap_list.html' %}
+    </div>
+
+  </div>
+</div>
